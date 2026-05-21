@@ -187,5 +187,3 @@ pytest tests/ -v
 - FAISS over a hosted vector database keeps the developer workflow private, local, and dependency-light.
 - Typer over argparse gives the CLI strong type hints, readable command declarations, and excellent generated help.
 - Chunking preserves line ranges and uses token-aware limits so results stay understandable and embedding inputs remain model-friendly.
-
-Built by [Your Name] · Part of an AI engineering portfolio
