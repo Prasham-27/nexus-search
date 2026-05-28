@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,7 +10,8 @@ from typing import Sequence
 import faiss
 import numpy as np
 
-from nexus.indexer import DEFAULT_INDEX_DIR, DEFAULT_MODEL, FileChunk, embed_texts, iter_indexable_files, normalize_extensions, read_text_file
+from nexus.config import DEFAULT_INDEX_DIR, DEFAULT_MODEL, normalize_extensions
+from nexus.indexer import FileChunk, embed_texts, is_binary_file, iter_indexable_files, load_index_metadata, read_text_file
 
 
 @dataclass(frozen=True)
@@ -36,8 +36,7 @@ def load_metadata(index_dir: Path = DEFAULT_INDEX_DIR) -> tuple[str, list[FileCh
         Embedding model name and chunks in vector order.
     """
 
-    metadata_path = index_dir / "metadata.json"
-    data = json.loads(metadata_path.read_text(encoding="utf-8"))
+    data = load_index_metadata(index_dir)
     chunks = [FileChunk(**item) for item in data.get("chunks", [])]
     return data.get("model", DEFAULT_MODEL), chunks
 
@@ -100,7 +99,12 @@ def exact_search(query: str, root: Path, top: int = 5, extensions: Sequence[str]
     pattern = re.compile(query, re.IGNORECASE)
     results: list[SearchResult] = []
     for path in iter_indexable_files(root.expanduser().resolve(), normalize_extensions(extensions)):
-        text = read_text_file(path)
+        try:
+            if is_binary_file(path):
+                continue
+            text = read_text_file(path)
+        except (OSError, PermissionError):
+            continue
         if text is None:
             continue
         lines = text.splitlines()

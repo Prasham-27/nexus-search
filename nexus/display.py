@@ -6,11 +6,11 @@ from pathlib import Path
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn, TimeElapsedColumn
 from rich.syntax import Syntax
 from rich.table import Table
 
-from nexus.indexer import IndexResult, IndexWarning
+from nexus.indexer import IndexResult, IndexStats, IndexWarning
 from nexus.searcher import SearchResult
 
 console = Console()
@@ -33,7 +33,14 @@ def indexing_progress() -> Progress:
         A configured Progress instance.
     """
 
-    return Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console)
+    return Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+        console=console,
+    )
 
 
 def show_index_result(result: IndexResult) -> None:
@@ -78,6 +85,26 @@ def show_error(message: str) -> None:
     console.print(f"[bold red]error:[/bold red] {message}")
 
 
+def show_info(message: str) -> None:
+    """Display an informational message.
+
+    Args:
+        message: Message text.
+    """
+
+    console.print(f"[cyan]{message}[/cyan]")
+
+
+def show_version(version: str) -> None:
+    """Display the package version.
+
+    Args:
+        version: Version string.
+    """
+
+    console.print(f"nexus-search {version}")
+
+
 def show_results(results: list[SearchResult]) -> None:
     """Render search results as a Rich table.
 
@@ -109,6 +136,41 @@ def show_results(results: list[SearchResult]) -> None:
     console.print(table)
 
 
+def show_status(stats: IndexStats) -> None:
+    """Render index statistics as a Rich panel.
+
+    Args:
+        stats: Index statistics to display.
+    """
+
+    file_types = ", ".join(f".{extension}: {count}" for extension, count in stats.file_type_counts)
+    if not file_types:
+        file_types = "none"
+    body = (
+        f"Files indexed: [bold]{stats.total_files}[/bold]\n"
+        f"Chunks indexed: [bold]{stats.total_chunks}[/bold]\n"
+        f"Last updated: {stats.last_updated or 'unknown'}\n"
+        f"Index size: {_format_bytes(stats.index_size_bytes)}\n"
+        f"Indexed root: {stats.indexed_root or 'unknown'}\n"
+        f"Model: {stats.model or 'unknown'}\n"
+        f"Top file types: {file_types}"
+    )
+    console.print(Panel.fit(body, title="nexus status"))
+
+
+def show_clear_result(removed: bool) -> None:
+    """Display the result of clearing the index.
+
+    Args:
+        removed: Whether an index was removed.
+    """
+
+    if removed:
+        console.print("[bold green]Local nexus index deleted.[/bold green]")
+    else:
+        console.print("[yellow]No local nexus index found.[/yellow]")
+
+
 def _lexer_for_path(path: Path) -> str:
     """Infer a Pygments lexer from a file extension.
 
@@ -129,3 +191,21 @@ def _lexer_for_path(path: Path) -> str:
         ".yml": "yaml",
     }
     return mapping.get(path.suffix.lower(), "text")
+
+
+def _format_bytes(size: int) -> str:
+    """Format bytes in a compact human-readable form.
+
+    Args:
+        size: Number of bytes.
+
+    Returns:
+        Human-readable size string.
+    """
+
+    value = float(size)
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024 or unit == "GB":
+            return f"{value:.1f} {unit}" if unit != "B" else f"{int(value)} B"
+        value /= 1024
+    return f"{value:.1f} GB"
